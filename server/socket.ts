@@ -23,8 +23,12 @@ function checkRateLimit(socketId: string): boolean {
 }
 
 export function setupSocket(httpServer: any): void {
+  const corsOrigin = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : process.env.RENDER_EXTERNAL_URL || '*';
+
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-    cors: { origin: '*' },
+    cors: { origin: corsOrigin },
     pingTimeout: 60000,
     pingInterval: 25000,
   });
@@ -168,22 +172,19 @@ export function setupSocket(httpServer: any): void {
           .where(eq(rooms.slug, info.slug))
           .run();
 
-        // 翻譯 profile（日文 → 中文）
-        const fieldsToTranslate = [
-          profileData.name,
-          profileData.chapterName,
-          profileData.leadershipRole,
-          profileData.bniYears,
-        ].join(' | ');
-
-        const translated = await translate(fieldsToTranslate, 'ja', 'zh-TW');
-        const parts = translated.split('|').map(s => s.trim());
+        // 翻譯 profile（日文 → 中文），逐欄位翻譯避免分隔符被 AI 改動
+        const [tName, tChapter, tLeadership, tBniYears] = await Promise.all([
+          translate(profileData.name, 'ja', 'zh-TW'),
+          translate(profileData.chapterName, 'ja', 'zh-TW'),
+          translate(profileData.leadershipRole, 'ja', 'zh-TW'),
+          translate(profileData.bniYears, 'ja', 'zh-TW'),
+        ]);
 
         const translatedProfile = {
-          name: parts[0] || profileData.name,
-          chapterName: parts[1] || profileData.chapterName,
-          leadershipRole: parts[2] || profileData.leadershipRole,
-          bniYears: parts[3] || profileData.bniYears,
+          name: tName || profileData.name,
+          chapterName: tChapter || profileData.chapterName,
+          leadershipRole: tLeadership || profileData.leadershipRole,
+          bniYears: tBniYears || profileData.bniYears,
         };
 
         // 發送給 Host

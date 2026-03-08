@@ -61,9 +61,9 @@ export default function GuestChat() {
   const t = (key: string) => UI_TRANSLATIONS['ja']?.[key] || key;
   const phrases = BNI_QUICK_PHRASES['ja'];
 
-  const { isListening, isSupported: micSupported, toggleListening } = useSpeech({
+  const { isListening, isProcessing, isSupported: micSupported, error: speechError, toggleListening, clearError } = useSpeech({
     lang: 'ja',
-    onResult: (text) => setInputText(prev => prev ? `${prev} ${text}` : text),
+    onResult: (text) => { setInputText(prev => prev ? `${prev} ${text}` : text); clearError(); },
   });
 
   const scrollToBottom = () => {
@@ -431,6 +431,14 @@ export default function GuestChat() {
         </div>
       )}
 
+      {/* Speech error toast */}
+      {speechError && (
+        <div className="bg-red-50 border-t border-red-200 px-4 py-2 flex items-center justify-between">
+          <span className="text-xs text-red-600">{speechError}</span>
+          <button onClick={clearError} className="text-red-400 hover:text-red-600 text-xs ml-2">✕</button>
+        </div>
+      )}
+
       {/* Input bar */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 px-3 py-2 safe-area-bottom">
         <form onSubmit={handleSend} className="flex items-center gap-2">
@@ -449,15 +457,22 @@ export default function GuestChat() {
             <button
               type="button"
               onClick={toggleListening}
+              disabled={isProcessing}
               className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition ${
-                isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                isListening ? 'bg-red-500 text-white animate-pulse' :
+                isProcessing ? 'bg-yellow-500 text-white animate-pulse' :
+                'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
               title="音声入力"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
-                <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
-              </svg>
+              {isProcessing ? (
+                <div className="spinner-sm" />
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                  <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
+                  <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
+                </svg>
+              )}
             </button>
           )}
 
@@ -466,7 +481,11 @@ export default function GuestChat() {
             type="text"
             value={inputText}
             onChange={handleInputChange}
-            placeholder={isListening ? '聞いています...' : t('typeMessage')}
+            placeholder={
+              isListening ? '録音中... タップで停止' :
+              isProcessing ? '認識中...' :
+              t('typeMessage')
+            }
             className="flex-1 bg-gray-50 border border-gray-200 text-gray-900 rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-cyan focus:border-brand-cyan outline-none placeholder-gray-400"
           />
 

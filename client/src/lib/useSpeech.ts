@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 
-// Whisper AI 語音辨識 Hook
-// 前端錄音 → 送到 server → OpenAI Whisper API 辨識
+// Gemini 語音辨識 Hook
+// 前端錄音 → 送到 server → Gemini API 辨識
 
 interface UseSpeechOptions {
   lang: string; // 'zh-TW' | 'ja'
@@ -10,6 +10,8 @@ interface UseSpeechOptions {
 
 export function useSpeech({ lang, onResult }: UseSpeechOptions) {
   const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -17,6 +19,7 @@ export function useSpeech({ lang, onResult }: UseSpeechOptions) {
 
   const startListening = useCallback(async () => {
     if (!isSupported || isListening) return;
+    setError(null);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -33,7 +36,6 @@ export function useSpeech({ lang, onResult }: UseSpeechOptions) {
       };
 
       mediaRecorder.onstop = async () => {
-        // 停止所有 track
         stream.getTracks().forEach(t => t.stop());
 
         const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
@@ -41,6 +43,9 @@ export function useSpeech({ lang, onResult }: UseSpeechOptions) {
           setIsListening(false);
           return;
         }
+
+        setIsListening(false);
+        setIsProcessing(true);
 
         try {
           const response = await fetch('/api/speech/transcribe', {
@@ -54,20 +59,28 @@ export function useSpeech({ lang, onResult }: UseSpeechOptions) {
 
           if (response.ok) {
             const { text } = await response.json();
-            if (text?.trim()) onResult(text.trim());
+            if (text?.trim()) {
+              onResult(text.trim());
+            } else {
+              setError(lang === 'ja' ? '音声を認識できませんでした' : '無法辨識語音');
+            }
+          } else {
+            setError(lang === 'ja' ? '音声認識に失敗しました' : '語音辨識失敗');
           }
         } catch (err) {
-          console.error('[Whisper] Upload error:', err);
+          console.error('[Speech] Upload error:', err);
+          setError(lang === 'ja' ? 'ネットワークエラー' : '網路錯誤');
+        } finally {
+          setIsProcessing(false);
         }
-
-        setIsListening(false);
       };
 
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
       setIsListening(true);
     } catch (err) {
-      console.error('[Whisper] Mic access error:', err);
+      console.error('[Speech] Mic access error:', err);
+      setError(lang === 'ja' ? 'マイクへのアクセスが拒否されました' : '麥克風存取被拒絕');
       setIsListening(false);
     }
   }, [lang, onResult, isSupported, isListening]);
@@ -83,5 +96,7 @@ export function useSpeech({ lang, onResult }: UseSpeechOptions) {
     else startListening();
   }, [isListening, startListening, stopListening]);
 
-  return { isListening, isSupported, toggleListening };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { isListening, isProcessing, isSupported, error, toggleListening, clearError };
 }

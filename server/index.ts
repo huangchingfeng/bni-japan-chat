@@ -21,7 +21,8 @@ const app = express();
 function getCorsOrigin(): string | string[] {
   const allowedOrigins = process.env.ALLOWED_ORIGINS;
   if (allowedOrigins) return allowedOrigins.split(',').map(s => s.trim());
-  if (process.env.NODE_ENV === 'production') return '*';
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL;
+  if (process.env.NODE_ENV === 'production') return true as any; // reflect request origin
   return 'http://localhost:5173';
 }
 
