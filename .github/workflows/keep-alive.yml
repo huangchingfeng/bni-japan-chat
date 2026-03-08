@@ -1,0 +1,16 @@
+name: Keep Alive
+on:
+  schedule:
+    # 每 14 分鐘 ping 一次，防止 Render 免費方案休眠
+    - cron: '*/14 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -sf "${{ secrets.RENDER_URL }}/api/health" || echo "Service may be waking up..."
+          sleep 5
+          curl -sf "${{ secrets.RENDER_URL }}/api/health" || echo "Ping retry completed"
