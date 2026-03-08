@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { Socket } from 'socket.io-client';
 import { createSocket, disconnectSocket } from '../lib/socket';
 import { api } from '../lib/api';
-import { UI_TRANSLATIONS, BNI_QUICK_PHRASES, type Message, type Room, type BniProfile } from '../../../shared/types';
+import { UI_TRANSLATIONS, BNI_QUICK_PHRASES, type Message, type Room, type BniProfile, type TranslatedGuestProfile } from '../../../shared/types';
 import { useSpeech } from '../lib/useSpeech';
 
 function formatTime(dateStr: string): string {
@@ -32,6 +32,7 @@ export default function HostChat() {
   const [isTyping, setIsTyping] = useState(false);
   const [showPhrases, setShowPhrases] = useState(false);
   const [phraseCategory, setPhraseCategory] = useState(0);
+  const [guestProfileCard, setGuestProfileCard] = useState<TranslatedGuestProfile | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -94,6 +95,12 @@ export default function HostChat() {
         });
 
         socket.on('guest:online', (data: { isOnline: boolean }) => setGuestOnline(data.isOnline));
+        socket.on('guest:profile', (data: TranslatedGuestProfile) => {
+          setGuestProfileCard(data);
+          if (data.translated?.name) {
+            setRoom(prev => prev ? { ...prev, guestName: data.translated.name } : prev);
+          }
+        });
 
         const handleGuestTyping = (data: { isTyping: boolean }) => {
           setIsTyping(data.isTyping);
@@ -178,11 +185,44 @@ export default function HostChat() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.length === 0 && (
+        {/* Guest Profile Card */}
+        {guestProfileCard && (
+          <div className="bg-gradient-to-r from-brand-cyan/10 to-blue-50 border border-brand-cyan/20 rounded-2xl p-4 mb-2">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🇯🇵</span>
+              <span className="font-bold text-gray-900">{guestProfileCard.translated.name}</span>
+              <span className="text-xs text-gray-400">({guestProfileCard.original.name})</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-gray-400 text-xs">分會</span>
+                <p className="text-gray-700">{guestProfileCard.translated.chapterName}</p>
+                <p className="text-[10px] text-gray-400">{guestProfileCard.original.chapterName}</p>
+              </div>
+              <div>
+                <span className="text-gray-400 text-xs">BNI 年資</span>
+                <p className="text-gray-700">{guestProfileCard.translated.bniYears}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-gray-400 text-xs">領導團隊職位</span>
+                <p className="text-gray-700">{guestProfileCard.translated.leadershipRole}</p>
+                <p className="text-[10px] text-gray-400">{guestProfileCard.original.leadershipRole}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {messages.length === 0 && !guestProfileCard && (
           <div className="text-center text-gray-400 mt-12">
             <div className="text-4xl mb-3">🤝</div>
             <p className="text-sm">{t('startConversation')}</p>
             <p className="text-xs text-gray-400 mt-1">{t('autoTranslated')}</p>
+          </div>
+        )}
+
+        {messages.length === 0 && guestProfileCard && (
+          <div className="text-center text-gray-400 mt-4">
+            <p className="text-xs">{t('autoTranslated')}</p>
           </div>
         )}
 

@@ -168,12 +168,11 @@ export default function GuestChat() {
     setShowProfileForm(false);
     localStorage.setItem(`guestProfile-${slug}`, JSON.stringify(profile));
 
-    // 連線並設定名字
+    // 連線並送完整 profile
     if (slug) {
       connectSocket(slug);
-      // 等 socket 連上後再 setName
       setTimeout(() => {
-        socketRef.current?.emit('guest:setName', { name });
+        socketRef.current?.emit('guest:setProfile', profile);
       }, 500);
     }
   };

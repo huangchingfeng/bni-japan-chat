@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 
 import roomsRouter from './routes/rooms.js';
 import chatRouter from './routes/chat.js';
+import speechRouter from './routes/speech.js';
 import { setupSocket } from './socket.js';
 import { initDB } from './db/index.js';
 
@@ -37,6 +38,7 @@ app.get('/api/health', (_req, res) => {
 // API Routes
 app.use('/api/rooms', roomsRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/speech', speechRouter);
 
 // Production: SPA fallback
 if (process.env.NODE_ENV === 'production') {

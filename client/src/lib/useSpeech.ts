@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 
-// Web Speech API 語音辨識 Hook
-// 支援中文 (zh-TW) 和日文 (ja-JP)
+// Whisper AI 語音辨識 Hook
+// 前端錄音 → 送到 server → OpenAI Whisper API 辨識
 
 interface UseSpeechOptions {
   lang: string; // 'zh-TW' | 'ja'
@@ -10,40 +10,72 @@ interface UseSpeechOptions {
 
 export function useSpeech({ lang, onResult }: UseSpeechOptions) {
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
-  const speechLang = lang === 'ja' ? 'ja-JP' : 'zh-TW';
+  const isSupported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
 
-  const isSupported = typeof window !== 'undefined' &&
-    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  const startListening = useCallback(async () => {
+    if (!isSupported || isListening) return;
 
-  const startListening = useCallback(() => {
-    if (!isSupported) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm',
+      });
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+      chunksRef.current = [];
 
-    recognition.lang = speechLang;
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
 
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      if (transcript) onResult(transcript);
-    };
+      mediaRecorder.onstop = async () => {
+        // 停止所有 track
+        stream.getTracks().forEach(t => t.stop());
 
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size < 100) {
+          setIsListening(false);
+          return;
+        }
 
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-  }, [speechLang, onResult, isSupported]);
+        try {
+          const response = await fetch('/api/speech/transcribe', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'X-Language': lang,
+            },
+            body: audioBlob,
+          });
+
+          if (response.ok) {
+            const { text } = await response.json();
+            if (text?.trim()) onResult(text.trim());
+          }
+        } catch (err) {
+          console.error('[Whisper] Upload error:', err);
+        }
+
+        setIsListening(false);
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsListening(true);
+    } catch (err) {
+      console.error('[Whisper] Mic access error:', err);
+      setIsListening(false);
+    }
+  }, [lang, onResult, isSupported, isListening]);
 
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
-    setIsListening(false);
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
   }, []);
 
   const toggleListening = useCallback(() => {

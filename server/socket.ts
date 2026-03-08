@@ -156,6 +156,48 @@ export function setupSocket(httpServer: any): void {
       }
     });
 
+    // guest:setProfile — Guest 送完整 BNI 資料，翻譯後轉給 Host
+    socket.on('guest:setProfile', async (profileData) => {
+      const info = socketRooms.get(socket.id);
+      if (!info || info.role !== 'guest') return;
+
+      try {
+        // 更新 guestName
+        db.update(rooms)
+          .set({ guestName: profileData.name, updatedAt: new Date().toISOString() })
+          .where(eq(rooms.slug, info.slug))
+          .run();
+
+        // 翻譯 profile（日文 → 中文）
+        const fieldsToTranslate = [
+          profileData.name,
+          profileData.chapterName,
+          profileData.leadershipRole,
+          profileData.bniYears,
+        ].join(' | ');
+
+        const translated = await translate(fieldsToTranslate, 'ja', 'zh-TW');
+        const parts = translated.split('|').map(s => s.trim());
+
+        const translatedProfile = {
+          name: parts[0] || profileData.name,
+          chapterName: parts[1] || profileData.chapterName,
+          leadershipRole: parts[2] || profileData.leadershipRole,
+          bniYears: parts[3] || profileData.bniYears,
+        };
+
+        // 發送給 Host
+        socket.to(info.slug).emit('guest:profile', {
+          original: profileData,
+          translated: translatedProfile,
+        });
+
+        console.log(`[Socket] Guest profile sent to host in room: ${info.slug}`);
+      } catch (error) {
+        console.error('[Socket] guest:setProfile error:', error);
+      }
+    });
+
     // message:read
     socket.on('message:read', ({ messageIds }) => {
       const info = socketRooms.get(socket.id);

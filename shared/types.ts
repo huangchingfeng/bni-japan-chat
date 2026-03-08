@@ -58,6 +58,18 @@ export interface RoomListItem extends Room {
 
 // ===== WebSocket Events =====
 
+export interface GuestProfileData {
+  name: string;
+  chapterName: string;
+  leadershipRole: string;
+  bniYears: string;
+}
+
+export interface TranslatedGuestProfile {
+  original: GuestProfileData;
+  translated: GuestProfileData;
+}
+
 export interface ClientToServerEvents {
   'room:join': (data: { slug: string; role: 'host' | 'guest' }) => void;
   'message:send': (data: { text: string; sourceLang: string }) => void;
@@ -65,6 +77,7 @@ export interface ClientToServerEvents {
   'typing:start': (data: { roomSlug: string }) => void;
   'typing:stop': (data: { roomSlug: string }) => void;
   'guest:setName': (data: { name: string }) => void;
+  'guest:setProfile': (data: GuestProfileData) => void;
 }
 
 export interface ServerToClientEvents {
@@ -76,6 +89,7 @@ export interface ServerToClientEvents {
   'host:typing': (data: { isTyping: boolean }) => void;
   'guest:typing': (data: { isTyping: boolean }) => void;
   'guest:online': (data: { isOnline: boolean }) => void;
+  'guest:profile': (data: TranslatedGuestProfile) => void;
   'user:online': (data: { role: string }) => void;
   'user:offline': (data: { role: string }) => void;
 }
