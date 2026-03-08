@@ -40,7 +40,7 @@ app.use('/api/chat', chatRouter);
 
 // Production: SPA fallback
 if (process.env.NODE_ENV === 'production') {
-  const clientDist = path.join(__dirname, '../dist/client');
+  const clientDist = path.join(__dirname, '../../client');
   app.use(express.static(clientDist));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) {
