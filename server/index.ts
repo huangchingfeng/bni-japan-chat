@@ -70,4 +70,13 @@ await initDB();
 
 server.listen(PORT, () => {
   console.log(`BNI Japan Chat server running on port ${PORT}`);
+
+  // 自動保活：每 14 分鐘 ping 自己，防止 Render 免費方案休眠
+  if (process.env.RENDER_EXTERNAL_URL) {
+    const url = `${process.env.RENDER_EXTERNAL_URL}/api/health`;
+    setInterval(() => {
+      fetch(url).catch(() => {});
+    }, 14 * 60 * 1000);
+    console.log(`[Keep-alive] Pinging ${url} every 14 minutes`);
+  }
 });
