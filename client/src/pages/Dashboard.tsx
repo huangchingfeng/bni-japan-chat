@@ -22,6 +22,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<number | null>(null);
   const [qrRoomId, setQrRoomId] = useState<number | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedRooms, setArchivedRooms] = useState<RoomListItem[]>([]);
 
   const uiLang = profile?.uiLang || 'zh-TW';
   const t = (key: string) => UI_TRANSLATIONS[uiLang]?.[key] || UI_TRANSLATIONS['zh-TW']?.[key] || key;
@@ -30,8 +32,12 @@ export default function Dashboard() {
   const fetchRooms = async () => {
     if (!creatorId) return;
     try {
-      const data = await api.get<RoomListItem[]>(`/rooms?creatorId=${encodeURIComponent(creatorId)}`);
-      setRooms(data);
+      const [activeData, allData] = await Promise.all([
+        api.get<RoomListItem[]>(`/rooms?creatorId=${encodeURIComponent(creatorId)}`),
+        api.get<RoomListItem[]>(`/rooms?creatorId=${encodeURIComponent(creatorId)}&includeArchived=true`),
+      ]);
+      setRooms(activeData);
+      setArchivedRooms(allData.filter(r => r.status === 'archived'));
     } catch {
       // 忽略
     } finally {
@@ -71,6 +77,15 @@ export default function Dashboard() {
     try {
       await api.delete(`/rooms/${id}?creatorId=${encodeURIComponent(creatorId)}`);
       if (qrRoomId === id) setQrRoomId(null);
+      fetchRooms();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleArchive = async (id: number) => {
+    try {
+      await api.patch(`/rooms/${id}/archive`, { creatorId });
       fetchRooms();
     } catch (err: any) {
       alert(err.message);
@@ -236,6 +251,13 @@ export default function Dashboard() {
                   </button>
                   <div className="w-px bg-gray-100" />
                   <button
+                    onClick={() => handleArchive(room.id)}
+                    className="text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 px-3 py-2 transition"
+                  >
+                    {isJa ? 'アーカイブ' : '歸檔'}
+                  </button>
+                  <div className="w-px bg-gray-100" />
+                  <button
                     onClick={() => handleDelete(room.id)}
                     className="text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 px-4 py-2 transition"
                   >
@@ -244,6 +266,60 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* 已歸檔的房間 */}
+        {archivedRooms.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className="w-full flex items-center justify-between text-sm text-gray-400 hover:text-gray-600 transition py-2"
+            >
+              <span>{isJa ? `アーカイブ済み (${archivedRooms.length})` : `已歸檔的房間 (${archivedRooms.length})`}</span>
+              <span className="text-xs">{showArchived ? '▲' : '▼'}</span>
+            </button>
+            {showArchived && (
+              <div className="space-y-2 mt-2">
+                {archivedRooms.map((room) => (
+                  <div
+                    key={room.id}
+                    className="bg-gray-100 rounded-xl border border-gray-200 overflow-hidden opacity-75"
+                  >
+                    <Link
+                      to={`/dashboard/chat/${room.id}`}
+                      className="block px-4 py-3 hover:bg-gray-50 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-gray-600 truncate">{room.label}</span>
+                          {room.guestName && (
+                            <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full ml-2">
+                              {room.guestName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                    <div className="flex border-t border-gray-200">
+                      <button
+                        onClick={() => handleArchive(room.id)}
+                        className="flex-1 text-xs text-gray-500 hover:text-brand-cyan hover:bg-brand-cyan/5 py-2 transition"
+                      >
+                        {isJa ? 'アーカイブ解除' : '取消歸檔'}
+                      </button>
+                      <div className="w-px bg-gray-200" />
+                      <button
+                        onClick={() => handleDelete(room.id)}
+                        className="text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 px-4 py-2 transition"
+                      >
+                        {isJa ? '削除' : '刪除'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -65,7 +65,12 @@ export function useSpeech({ lang, onResult }: UseSpeechOptions) {
               setError(lang === 'ja' ? '音声を認識できませんでした' : '無法辨識語音');
             }
           } else {
-            setError(lang === 'ja' ? '音声認識に失敗しました' : '語音辨識失敗');
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.error === 'audio_too_short') {
+              setError('録音が短すぎます / 錄音太短了');
+            } else {
+              setError(lang === 'ja' ? '音声認識に失敗しました' : '語音辨識失敗');
+            }
           }
         } catch (err) {
           console.error('[Speech] Upload error:', err);

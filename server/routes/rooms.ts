@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { db } from '../db/index.js';
 import { rooms, messages } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
 
 const router = Router();
 
@@ -14,10 +14,17 @@ router.get('/', (req, res) => {
     return;
   }
 
-  const allRooms = db.select().from(rooms)
-    .where(eq(rooms.creatorId, creatorId))
-    .orderBy(desc(rooms.updatedAt))
-    .all();
+  const includeArchived = req.query.includeArchived === 'true';
+
+  const allRooms = includeArchived
+    ? db.select().from(rooms)
+        .where(eq(rooms.creatorId, creatorId))
+        .orderBy(desc(rooms.updatedAt))
+        .all()
+    : db.select().from(rooms)
+        .where(and(eq(rooms.creatorId, creatorId), eq(rooms.status, 'active')))
+        .orderBy(desc(rooms.updatedAt))
+        .all();
 
   const result = allRooms.map(room => {
     const lastMsg = db.select().from(messages)
@@ -45,7 +52,7 @@ router.post('/', (req, res) => {
     return;
   }
 
-  const slug = nanoid(10);
+  const slug = nanoid(16);
   const targetLang = creatorLang === 'ja' ? 'zh-TW' : 'ja';
 
   const result = db.insert(rooms).values({
@@ -63,6 +70,32 @@ router.post('/', (req, res) => {
     ...room,
     chatUrl: `/chat/${slug}`,
   });
+});
+
+// PATCH /api/rooms/:id/archive — 歸檔或取消歸檔房間
+router.patch('/:id/archive', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const creatorId = (req.body.creatorId || req.query.creatorId) as string;
+
+  if (!creatorId) {
+    res.status(400).json({ message: 'Missing creatorId' });
+    return;
+  }
+
+  const room = db.select().from(rooms).where(eq(rooms.id, id)).get();
+  if (!room || room.creatorId !== creatorId) {
+    res.status(404).json({ message: '找不到此對話' });
+    return;
+  }
+
+  const newStatus = room.status === 'archived' ? 'active' : 'archived';
+  db.update(rooms)
+    .set({ status: newStatus, updatedAt: new Date().toISOString() })
+    .where(eq(rooms.id, id))
+    .run();
+
+  const updated = db.select().from(rooms).where(eq(rooms.id, id)).get();
+  res.json(updated);
 });
 
 // DELETE /api/rooms/:id — 刪除房間

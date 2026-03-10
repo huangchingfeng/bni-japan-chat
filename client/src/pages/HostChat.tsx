@@ -105,7 +105,7 @@ export default function HostChat() {
         const handleGuestTyping = (data: { isTyping: boolean }) => {
           setIsTyping(data.isTyping);
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-          if (data.isTyping) { typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000); }
+          if (data.isTyping) { typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 5000); }
         };
         socket.on('guest:typing', handleGuestTyping);
         socket.on('typing:indicator', (data: { sender: 'host' | 'guest'; isTyping?: boolean }) => {
@@ -246,6 +246,9 @@ export default function HostChat() {
                     <p className="text-xs mt-1 text-gray-400 break-words">{msg.originalText}</p>
                   )}
                 </div>
+                {msg.translationFailed && (
+                  <p className="text-amber-500 text-xs mt-0.5 px-1">⚠ 翻訳失敗 / 翻譯失敗</p>
+                )}
                 <div className={`flex items-center gap-1 mt-0.5 px-1 ${isHost ? 'justify-end' : 'justify-start'}`}>
                   <span className="text-[10px] text-gray-400">{formatTime(msg.createdAt)}</span>
                   {isHost && msg.id > 0 && (

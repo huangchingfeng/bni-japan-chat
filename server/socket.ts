@@ -5,6 +5,10 @@ import { eq } from 'drizzle-orm';
 import { translate } from './services/translator.js';
 import type { ClientToServerEvents, ServerToClientEvents } from '../shared/types.js';
 
+function sanitizeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 const roomConnections = new Map<string, { host?: string; guest?: string }>();
 const socketRooms = new Map<string, { slug: string; role: 'host' | 'guest' }>();
 const rateLimits = new Map<string, number[]>();
@@ -93,9 +97,11 @@ export function setupSocket(httpServer: any): void {
     });
 
     // message:send
-    socket.on('message:send', async ({ text, sourceLang }) => {
+    socket.on('message:send', async ({ text: rawText, sourceLang }) => {
       const info = socketRooms.get(socket.id);
       if (!info) return;
+
+      const text = rawText ? sanitizeHtml(rawText) : rawText;
 
       if (!text || text.length > MAX_MESSAGE_LENGTH) {
         socket.emit('message:error', { error: `訊息長度不得超過 ${MAX_MESSAGE_LENGTH} 字元` });
@@ -117,6 +123,7 @@ export function setupSocket(httpServer: any): void {
         const targetLang = role === 'host' ? 'ja' : 'zh-TW';
 
         const translatedText = await translate(text, actualSourceLang, targetLang);
+        const translationFailed = translatedText === text && actualSourceLang !== targetLang;
 
         const result = db.insert(messages).values({
           roomId: room.id,
@@ -137,7 +144,10 @@ export function setupSocket(httpServer: any): void {
         const inserted = db.select().from(messages).where(eq(messages.id, insertedId)).get();
 
         if (inserted) {
-          io.to(slug).emit('message:new', inserted as any);
+          const msgPayload = translationFailed
+            ? { ...inserted, translationFailed: true }
+            : inserted;
+          io.to(slug).emit('message:new', msgPayload as any);
         }
       } catch (error) {
         console.error('[Socket] message:send error:', error);
@@ -146,9 +156,11 @@ export function setupSocket(httpServer: any): void {
     });
 
     // guest:setName
-    socket.on('guest:setName', async ({ name }) => {
+    socket.on('guest:setName', async ({ name: rawName }) => {
       const info = socketRooms.get(socket.id);
       if (!info || info.role !== 'guest') return;
+
+      const name = sanitizeHtml(rawName);
 
       try {
         db.update(rooms)
@@ -161,9 +173,16 @@ export function setupSocket(httpServer: any): void {
     });
 
     // guest:setProfile — Guest 送完整 BNI 資料，翻譯後轉給 Host
-    socket.on('guest:setProfile', async (profileData) => {
+    socket.on('guest:setProfile', async (rawProfileData) => {
       const info = socketRooms.get(socket.id);
       if (!info || info.role !== 'guest') return;
+
+      const profileData = {
+        name: sanitizeHtml(rawProfileData.name),
+        chapterName: sanitizeHtml(rawProfileData.chapterName),
+        leadershipRole: sanitizeHtml(rawProfileData.leadershipRole),
+        bniYears: sanitizeHtml(rawProfileData.bniYears),
+      };
 
       try {
         // 更新 guestName

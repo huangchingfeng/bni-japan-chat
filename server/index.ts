@@ -4,6 +4,7 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,10 +27,29 @@ function getCorsOrigin(): string | string[] {
   return 'http://localhost:5173';
 }
 
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 分鐘
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+
+const speechLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 分鐘
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many speech requests, please try again later.' },
+});
+
 // Middleware
 app.use(helmet());
 app.use(cors({ origin: getCorsOrigin() }));
 app.use(express.json());
+app.use('/api', apiLimiter);
+app.use('/api/speech', speechLimiter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

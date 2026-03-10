@@ -143,7 +143,7 @@ export default function GuestChat() {
     const handleHostTyping = (data: { isTyping: boolean }) => {
       setIsTyping(data.isTyping);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      if (data.isTyping) { typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000); }
+      if (data.isTyping) { typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 5000); }
     };
     socket.on('host:typing', handleHostTyping);
     socket.on('typing:indicator', (data: { sender: 'host' | 'guest'; isTyping?: boolean }) => {
@@ -369,6 +369,9 @@ export default function GuestChat() {
                     <p className="text-xs mt-1 text-gray-400 break-words">{msg.originalText}</p>
                   )}
                 </div>
+                {msg.translationFailed && (
+                  <p className="text-amber-500 text-xs mt-0.5 px-1">⚠ 翻訳失敗 / 翻譯失敗</p>
+                )}
                 <div className={`flex items-center gap-1 mt-0.5 px-1 ${isGuest ? 'justify-end' : 'justify-start'}`}>
                   <span className="text-[10px] text-gray-400">{formatTime(msg.createdAt)}</span>
                   {isGuest && msg.id > 0 && (

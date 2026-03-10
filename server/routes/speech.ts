@@ -17,7 +17,7 @@ router.post('/transcribe', async (req, res) => {
     try {
       const audioBuffer = Buffer.concat(chunks);
       if (audioBuffer.length < 100) {
-        res.status(400).json({ error: 'No audio data' });
+        res.status(400).json({ error: 'audio_too_short' });
         return;
       }
 

@@ -47,6 +47,7 @@ export interface Message {
   mediaUrl: string | null;
   readAt: string | null;
   createdAt: string;
+  translationFailed?: boolean;
 }
 
 // ===== API Types =====
